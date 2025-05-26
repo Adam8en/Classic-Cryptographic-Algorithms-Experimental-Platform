@@ -1,0 +1,21 @@
+# 虚拟环境
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE/编辑器特定文件 (根据你使用的工具添加)
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 操作系统生成的文件
+.DS_Store
+Thumbs.db
+
+# 其他你不想提交的文件
+# 例如，如果你有本地配置文件或敏感数据文件
+# local_config.py
+# sensitive_data/

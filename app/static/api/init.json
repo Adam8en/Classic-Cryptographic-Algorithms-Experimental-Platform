@@ -1,0 +1,45 @@
+{
+  "homeInfo": {
+    "title": "首页",
+    "href": "../static/page/introduction.html"
+  },
+  "logoInfo": {
+    "title": "JNU",
+    "image": "../static/images/logo.png",
+    "href": ""
+  },
+  "menuInfo": [
+    {
+      "title": "功能展示",
+      "icon": "fa fa-address-book",
+      "href": "",
+      "target": "_self",
+      "child": [
+        {
+          "title": "首页",
+          "href": "../static/page/introduction.html",
+          "icon": "fa fa-home",
+          "target": "_self"
+        },
+        {
+          "title": "RSA加解密演示",
+          "href": "../static/page/RSA.html",
+          "icon": "fa fa-key",
+          "target": "_self"
+        },
+        {
+          "title": "ElGamal加解密演示",
+          "href": "../static/page/ElGamal.html",
+          "icon": "fa fa-random",
+          "target": "_self"
+        },
+        {
+          "title": "ECC加解密演示",
+          "href": "../static/page/ECC.html",
+          "icon": "fa fa-linode",
+          "target": "_self"
+        }
+      ]
+    }
+  ]
+}

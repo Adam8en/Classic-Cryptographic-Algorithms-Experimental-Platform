@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <script>
+        function showImage(file){
+            var reader = new FileReader()
+            reader.onload = function (evt){
+                document.getElementById('myImgFile').src=evt.target.result;
+            }
+            reader.readAsDataURL(file.files[0])
+        }
+    </script>
+</head>
+<body>
+<div id="main" style="width:100%; height:100%;">
+    <div id="left" style="float:left ; width:50%; height:100%;">
+         <form id="uploadForm" enctype="multipart/form-data">
+             <input type=file name=ImgFile onchange="showImage(this)">
+             <input type=button value=Upload id="upFileBtn" >
+         </form>
+        <img id="myImgFile" width="400px" height="400px">
+    </div>
+    <div id="right" style="float:left ; width:50%; height:100%;">
+         <h2 id="h2"></h2>
+    </div>
+</div>
+
+
+{#    <!--请求后门返回字典格式的数据  使用jinja2语法#}
+{#    {% if data %}#}
+{#        <img id="myImgFile" width="225px" height="225px">#}
+{#        <h1>{{ data.image }}所属分类为：{{ data.class_name }}</h1>#}
+{#    {% else %}#}
+{#        <img id="myImgFile" width="225px" height="225px">#}
+{#    {% endif %}-->#}
+</body>
+<script src="../static/lib/jquery-3.4.1/jquery-3.4.1.min.js" charset="utf-8"></script>
+<script type="text/javascript">
+        $('#upFileBtn').click(function () {
+            document.getElementById('h2').innerHTML="分类预测中,请耐心等待几秒钟……"
+            var formFile = new FormData($('#uploadForm')[0])
+		     $.ajax({
+                url:"/upload",
+                type:"POST",
+                data:formFile,
+                processData:false,
+                contentType:false,
+                success: function (data) {
+                    if(data["status"]==1){
+                        document.getElementById('h2').innerHTML=data["errmsg"]
+                    }
+                    else {
+                        document.getElementById('h2').innerHTML="图片"+data["msg"]+"的分类结果为"+data["class_name"]
+                    }
+
+                },
+                error:function () {
+                      alert('请求服务异常！')
+                 }
+             })
+        })
+</script>
+</html>
