@@ -33,24 +33,36 @@ def power(base, exp, mod):
 def extended_gcd(a, b):
     """
     计算 a 和 b 的最大公约数，并找到整数 x 和 y 使得 ax + by = gcd(a, b)。
-    使用扩展欧几里得算法。
-
-    参数:
-        a (int): 第一个整数
-        b (int): 第二个整数
-
-    返回:
-        tuple: (gcd, x, y)
-               gcd 是 a 和 b 的最大公约数
-               x, y 是满足 ax + by = gcd(a, b) 的整数
+    使用迭代版本的扩展欧几里得算法，避免递归深度问题。
     """
-    if a == 0:
-        return b, 0, 1
+    # 记录原始 a, b 的符号
+    s_a = 1 if a >= 0 else -1
+    s_b = 1 if b >= 0 else -1
     
-    gcd, x1, y1 = extended_gcd(b % a, a)
-    x = y1 - (b // a) * x1
-    y = x1
-    return gcd, x, y
+    # 使用绝对值进行计算
+    u_a, v_a = abs(a), abs(b) 
+
+    # 初始化系数
+    x_prev, y_prev = 1, 0  # 对应 u_a (即原始的 a)
+    x_curr, y_curr = 0, 1  # 对应 v_a (即原始的 b)
+
+    while v_a != 0:
+        quotient = u_a // v_a
+        
+        # 更新 u_a 和 v_a (标准欧几里得步骤)
+        u_a, v_a = v_a, u_a - quotient * v_a
+        
+        # 更新 x 和 y 的系数
+        x_prev, x_curr = x_curr, x_prev - quotient * x_curr
+        y_prev, y_curr = y_curr, y_prev - quotient * y_curr
+        
+    # 循环结束时, u_a 是 gcd, x_prev 和 y_prev 是对应的系数
+    # 使得 x_prev * abs(a) + y_prev * abs(b) = gcd
+    # 我们需要 ax + by = gcd，所以需要根据原始符号调整
+    # x = x_prev * s_a
+    # y = y_prev * s_b
+    
+    return u_a, x_prev * s_a, y_prev * s_b
 
 def mod_inverse(a, m):
     """

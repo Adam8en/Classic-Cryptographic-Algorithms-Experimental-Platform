@@ -5,6 +5,61 @@ from hashlib import sha256
 from itertools import cycle
 from app.utils.math_utils import mod_inverse # power 函数在这里可能用不上
 
+CURVE_PARAMETERS = {
+    "secp192r1": { # NIST P-192
+        "p": 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFFFFFFFFFF,
+        "a": 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFFFFFFFFFC,
+        "b": 0x64210519E59C80E70FA7E9AB72243049FEB8DEECC146B9B1,
+        "Gx": 0x188DA80EB03090F67CBF20EB43A18800F4FF0AFD82FF1012,
+        "Gy": 0x07192B95FFC8DA78631011ED6B24CDD573F977A11E794811,
+        "n": 0xFFFFFFFFFFFFFFFFFFFFFFFF99DEF836146BC9B1B4D22831,
+        "h": 1
+    },
+    "secp256r1": { # NIST P-256 (与 secp256k1 不同)
+        "p": 0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF,
+        "a": 0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFC,
+        "b": 0x5AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B,
+        "Gx": 0x6B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296,
+        "Gy": 0x4FE342E2FE1A7F9B8EE7EB4A7C0F9E162BCE33576B315ECECBB6406837BF51F5,
+        "n": 0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551,
+        "h": 1
+    },
+    "secp256k1": { # 比特币使用的曲线
+        "p": 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F,
+        "a": 0,
+        "b": 7,
+        "Gx": 0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798,
+        "Gy": 0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8,
+        "n": 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141,
+        "h": 1
+    },
+    "secp384r1": { # NIST P-384
+        "p": 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFF0000000000000000FFFFFFFF,
+        "a": 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFF0000000000000000FFFFFFFC,
+        "b": 0xB3312FA7E23EE7E4988E056BE3F82D19181D9C6EFE8141120314088F5013875AC656398D8A2ED19D2A85C8EDD3EC2AEF,
+        "Gx": 0xAA87CA22BE8B05378EB1C71EF320AD746E1D3B628BA79B9859F741E082542A385502F25DBF55296C3A545E3872760AB7,
+        "Gy": 0x3617DE4A96262C6F5D9E98BF9292DC29F8F41DBD289A147CE9DA3113B5F0B8C00A60B1CE1D7E819D7A431D7C90EA0E5F,
+        "n": 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFC7634D81F4372DDF581A0DB248B0A77AECEC196ACCC52973,
+        "h": 1
+    }
+}
+
+# 用于缓存已创建的曲线对象，避免重复实例化
+_CURVE_INSTANCES = {}
+
+def get_curve_by_name(name="secp256k1"):
+    """根据名称获取或创建 EllipticCurve 对象"""
+    if name not in _CURVE_INSTANCES:
+        if name not in CURVE_PARAMETERS:
+            raise ValueError(f"未知的椭圆曲线名称: {name}")
+        params = CURVE_PARAMETERS[name]
+        # 实例化 EllipticCurve 对象
+        _CURVE_INSTANCES[name] = EllipticCurve(
+            params["p"], params["a"], params["b"],
+            params["Gx"], params["Gy"], params["n"], params["h"]
+        )
+    return _CURVE_INSTANCES[name]
+
 class ECCKeyGenerationError(Exception):
     """自定义异常，用于ECC密钥生成过程中的错误。"""
     pass
@@ -302,7 +357,7 @@ class CurvePoint:
                 
         return current_result
 
-def generate_ecc_keys(curve=None):
+def generate_ecc_keys(curve_name="secp256k1"):
     """
     生成ECC密钥对 (私钥和公钥)。
 
@@ -317,8 +372,7 @@ def generate_ecc_keys(curve=None):
     Raises:
         ECCKeyGenerationError: 如果密钥生成过程中发生错误。
     """
-    if curve is None:
-        curve = secp256k1_curve
+    curve = get_curve_by_name(curve_name)
 
     if not isinstance(curve, EllipticCurve):
         raise TypeError("curve must be an instance of EllipticCurve")
@@ -368,7 +422,7 @@ def _derive_symmetric_key_from_point(shared_point_S):
 
     return symmetric_key
 
-def encrypt_message_ecc(recipient_public_key_point, message_bytes, curve=None):
+def encrypt_message_ecc(recipient_public_key_point, message_bytes):
     """
     使用简化的ECIES方案通过ECC公钥加密消息。
 
@@ -385,17 +439,16 @@ def encrypt_message_ecc(recipient_public_key_point, message_bytes, curve=None):
         ECIESEncryptionError: 如果加密过程中发生错误。
         TypeError: 如果参数类型不正确。
     """
+    curve = recipient_public_key_point.curve
+
+    if not curve:
+        raise ECIESEncryptionError("Curve is not initialized")
+    
     if not isinstance(recipient_public_key_point, CurvePoint) or recipient_public_key_point.is_infinity():
         raise TypeError("recipient_public_key_point must be an instance of CurvePoint and not at infinity")
     if not isinstance(message_bytes, bytes):
         raise TypeError("message_bytes must be bytes")
     
-    if curve is None:
-        curve = recipient_public_key_point.curve
-        if curve is None:
-            curve = secp256k1_curve
-    
-
     # 1. 随机生成临时私钥 k_e，范围 [1, n-1]
     n = curve.n
     try:
@@ -422,7 +475,7 @@ def encrypt_message_ecc(recipient_public_key_point, message_bytes, curve=None):
     
     return ephemeral_public_key_R, ciphertext_bytes
 
-def decrypt_message_ecc(recipient_private_key, ephemeral_public_key_R, ciphertext_bytes, curve=None):
+def decrypt_message_ecc(recipient_private_key, ephemeral_public_key_R, ciphertext_bytes):
     """
     使用简化的ECIES方案通过ECC私钥解密消息。
 
@@ -440,17 +493,16 @@ def decrypt_message_ecc(recipient_private_key, ephemeral_public_key_R, ciphertex
         ECIESDecryptionError: 如果解密过程中发生错误。
         TypeError: 如果参数类型不正确。
     """
+    curve = ephemeral_public_key_R.curve
+    if not curve:
+        raise ECIESDecryptionError("Curve is not initialized")
+    
     if not isinstance(recipient_private_key, int) or recipient_private_key <= 0 or recipient_private_key >= curve.n:
         raise TypeError("recipient_private_key must be a positive integer less than n")
     if not isinstance(ephemeral_public_key_R, CurvePoint) or ephemeral_public_key_R.is_infinity():
         raise TypeError("ephemeral_public_key_R must be an instance of CurvePoint and not at infinity")
     if not isinstance(ciphertext_bytes, bytes):
         raise TypeError("ciphertext_bytes must be bytes")    
-    
-    if curve is None:
-        curve = ephemeral_public_key_R.curve
-        if curve is None:
-            curve = secp256k1_curve
         
     n = curve.n
     if not (1 <= recipient_private_key < n):
@@ -469,64 +521,43 @@ def decrypt_message_ecc(recipient_private_key, ephemeral_public_key_R, ciphertex
     
     return decrypted_message_bytes
 
-    
-    
-
-# secp256k1 曲线参数 (标准值)
-P_secp256k1 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F
-A_secp256k1 = 0
-B_secp256k1 = 7
-GX_secp256k1 = 0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798
-GY_secp256k1 = 0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8
-N_secp256k1 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
-H_secp256k1 = 1
-
-# 创建一个 secp256k1 曲线的实例
-secp256k1_curve = EllipticCurve(
-    P_secp256k1, A_secp256k1, B_secp256k1,
-    GX_secp256k1, GY_secp256k1, N_secp256k1, H_secp256k1
-)
-
 # --- 测试代码 ---
 if __name__ == '__main__':
-    # ... (之前的打印和点运算、密钥生成测试) ...
+    print("\n--- 测试使用不同曲线的ECC密钥生成与加解密 ---")
+    
+    # 定义我们要测试的曲线名称列表
+    curve_names_to_test = ["secp192r1", "secp256r1", "secp256k1", "secp384r1"]
 
-    print("\n--- 测试ECC加密和解密 (简化ECIES) ---")
-    try:
-        # 1. 生成接收方的密钥对
-        print("\n为接收方生成密钥对...")
-        recipient_priv_key_d, recipient_pub_key_Q = generate_ecc_keys(curve=secp256k1_curve)
-        # print(f"  接收方私钥 d_recv: 0x{recipient_priv_key_d:x}")
-        # print(f"  接收方公钥 Q_recv: {recipient_pub_key_Q}")
+    for name in curve_names_to_test:
+        print(f"\n==================== 测试曲线: {name} ====================")
+        try:
+            # 1. 获取曲线对象
+            current_curve = get_curve_by_name(name)
 
-        # 2. 准备要加密的消息
-        original_message = b"This is a top secret message for ECIES!" * 3 # 使消息比SHA256密钥长一点
+            # 2. 密钥生成
+            priv_key, pub_key = generate_ecc_keys(curve_name=name)
+            
+            # 3. 验证公钥点在正确的曲线上
+            assert current_curve.is_on_curve(pub_key), f"曲线 {name} 的公钥不在曲线上!"
+            assert pub_key.curve == current_curve, f"公钥点的曲线属性不正确!"
+            print(f"  公钥点在曲线 {name} 上验证通过。")
 
-        # 3. 加密消息 (发送方操作)
-        print(f"\n加密消息: \"{original_message.decode('utf-8', errors='ignore')[:60]}...\"")
-        ephemeral_R, ciphertext = encrypt_message_ecc(recipient_pub_key_Q, original_message, curve=secp256k1_curve)
-        
-        # print("\n加密过程输出:")
-        # print(f"  发送的临时公钥 R: {ephemeral_R}")
-        # print(f"  发送的密文 C (XORed, 前50字节 hex): {ciphertext[:50].hex()}")
+            # 4. 加解密循环测试
+            message = f"这是一条用于测试曲线 {name} 的消息!".encode('utf-8')
+            print(f"  将使用消息: \"{message.decode()}\" 进行加解密测试...")
+            
+            ephemeral_R, ciphertext = encrypt_message_ecc(pub_key, message)
+            
+            # 验证临时公钥R也在正确的曲线上
+            assert ephemeral_R.curve == current_curve, "临时公钥R的曲线属性不正确！"
+            
+            decrypted_message = decrypt_message_ecc(priv_key, ephemeral_R, ciphertext)
+            
+            assert message == decrypted_message, f"曲线 {name} 上的加解密失败！"
+            print(f"  曲线 {name} 的加解密循环测试成功！")
 
-        # 4. 解密消息 (接收方操作)
-        print(f"\n解密消息...")
-        decrypted_message = decrypt_message_ecc(recipient_priv_key_d, ephemeral_R, ciphertext, curve=secp256k1_curve)
-        
-        print("\n--- 验证结果 ---")
-        print(f"  原始明文 (解码后，前60字节): {original_message.decode('utf-8', errors='ignore')[:60]}...")
-        print(f"  解密明文 (解码后，前60字节): {decrypted_message.decode('utf-8', errors='ignore')[:60]}...")
-
-        if decrypted_message == original_message:
-            print("\n成功：ECC解密后的明文与原始明文一致！")
-        else:
-            print("\n失败：ECC解密后的明文与原始明文不一致。")
-            # 为了调试，可以打印更多信息
-            # print(f"  原始 (bytes): {original_message}")
-            # print(f"  解密 (bytes): {decrypted_message}")
-
-    except (ECCKeyGenerationError, ECIESEncryptionError, ECIESDecryptionError, TypeError) as e:
-        print(f"ECC加解密测试失败: {e}")
-    except Exception as e:
-        print(f"ECC加解密测试中发生未知错误: {e}")
+        except Exception as e:
+            print(f"测试曲线 {name} 时发生严重错误: {e}")
+            # raise e # 如果你想在出错时停止整个脚本，可以取消这行注释
+    
+    print("\n==================== 所有曲线测试完成 ====================")
