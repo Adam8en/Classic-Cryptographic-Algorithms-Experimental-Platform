@@ -70,17 +70,31 @@
           <blockquote class="layui-elem-quote layui-quote-nm">
             Tips：输入参数，点击生成密钥对即可获得公钥与私钥。
           </blockquote>
-          <form class="layui-form" id="generate-key-form">
-
+          <form class="layui-form" id="formGenerateKeys">
             <div class="layui-form-item">
-              <button
-                type="submit"
-                class="layui-btn layui-btn-normal"
-                lay-submit
-                lay-filter="eccGenerateKeysFilter"
-              >
-                生成密钥对
-              </button>
+              <label class="layui-form-label">选择曲线</label>
+              <div class="layui-input-block">
+                <select name="curve_name" id="ecc-curve-select-generate">
+                  <option value="secp192r1">secp192r1 (P-192)</option>
+                  <option value="secp256r1">secp256r1 (P-256)</option>
+                  <option value="secp256k1" selected="">
+                    secp256k1 (比特币曲线)
+                  </option>
+                  <option value="secp384r1">secp384r1 (P-384)</option>
+                </select>
+              </div>
+            </div>
+            <div class="layui-form-item">
+              <div class="layui-input-block">
+                <button
+                  type="button"
+                  class="layui-btn layui-btn-normal"
+                  lay-submit
+                  lay-filter="eccGenerateKeysFilter"
+                >
+                  生成密钥对
+                </button>
+              </div>
             </div>
           </form>
         </div>
@@ -136,6 +150,8 @@
                 ></textarea>
               </div>
             </div>
+
+            <input type="hidden" id="eccCurveNameEncryptInput" name="curve_name">
 
             <div class="layui-form-item">
               <button
@@ -202,6 +218,8 @@
                 ></textarea>
               </div>
             </div>
+
+            <input type="hidden" id="eccCurveNameDecryptInput" name="curve_name">
 
             <div class="layui-form-item">
               <label class="layui-form-label">私钥d</label>

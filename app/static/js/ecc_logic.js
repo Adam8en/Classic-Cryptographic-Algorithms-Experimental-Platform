@@ -1,4 +1,5 @@
 // app/static/js/ecc_logic.js
+
 layui.use(['form', 'layer', 'jquery'], function () {
     var form = layui.form;
     var layer = layui.layer;
@@ -9,8 +10,17 @@ layui.use(['form', 'layer', 'jquery'], function () {
     // --- 1. ECC 密钥生成 ---
     form.on('submit(eccGenerateKeysFilter)', function (formData) {
         layer.load(1);
+        
+        // 从下拉框获取选择的曲线名称
+        var curveName = $('#ecc-curve-select-generate').val();
+        if (!curveName) {
+            layer.alert('请选择一条椭圆曲线！', {icon: 7});
+            layer.closeAll('loading');
+            return false;
+        }
+
         var payload = {
-            // curve_name: "secp256k1" // 如果后端需要可以发送
+            curve_name: curveName
         };
         console.log("发送ECC密钥生成请求:", payload);
 
@@ -26,7 +36,7 @@ layui.use(['form', 'layer', 'jquery'], function () {
 
                 if (response.success && response.keys) {
                     var keys = response.keys;
-                    var resultHtml = "<fieldset class='layui-elem-field' style='margin-top: 15px;'><legend>生成的ECC密钥 (secp256k1)</legend><div class='layui-field-box'>";
+                    var resultHtml = "<fieldset class='layui-elem-field' style='margin-top: 15px;'><legend>生成的ECC密钥 ("+keys.curve_name+")</legend><div class='layui-field-box'>";
                     resultHtml += "<pre><strong>私钥 d (整数):</strong>\n" + $('<div/>').text(keys.private_key_d).html() + "</pre>";
                     resultHtml += "<pre><strong>公钥 Qx (点坐标):</strong>\n" + $('<div/>').text(keys.public_key_qx).html() + "</pre>";
                     resultHtml += "<pre><strong>公钥 Qy (点坐标):</strong>\n" + $('<div/>').text(keys.public_key_qy).html() + "</pre>";
@@ -36,7 +46,10 @@ layui.use(['form', 'layer', 'jquery'], function () {
                     // 自动填充到加密和解密表单
                     $('#eccPublicKeyQxEncryptInput').val(keys.public_key_qx);
                     $('#eccPublicKeyQyEncryptInput').val(keys.public_key_qy);
-                    $('#eccPrivateKeyDDecryptInput').val(keys.private_key_d); // 解密时用
+                    $('#eccPrivateKeyDDecryptInput').val(keys.private_key_d);
+                    // 将曲线名称也传递下去，可以放在一个隐藏输入或只读文本框中
+                    $('#eccCurveNameEncryptInput').val(keys.curve_name);
+                    $('#eccCurveNameDecryptInput').val(keys.curve_name);
 
                     layer.msg(response.message || 'ECC密钥生成成功！', { icon: 1, time: 2000 });
                 } else {
@@ -62,9 +75,11 @@ layui.use(['form', 'layer', 'jquery'], function () {
         var plaintext = $('#eccPlaintextEncryptInput').val();
         var publicKeyQx = $('#eccPublicKeyQxEncryptInput').val();
         var publicKeyQy = $('#eccPublicKeyQyEncryptInput').val();
+        // 获取当前操作的曲线名称
+        var curveName = $('#eccCurveNameEncryptInput').val();
 
-        if (!plaintext || !publicKeyQx || !publicKeyQy) {
-            layer.alert('进行加密操作，明文和接收方公钥Qx、Qy均不能为空！', { icon: 7, title: '输入错误' });
+        if (!plaintext || !publicKeyQx || !publicKeyQy || !curveName) {
+            layer.alert('进行加密操作，明文、接收方公钥Qx、Qy以及曲线名称均不能为空！', { icon: 7, title: '输入错误' });
             return false;
         }
 
@@ -72,7 +87,8 @@ layui.use(['form', 'layer', 'jquery'], function () {
         var payload = {
             plaintext: plaintext,
             public_key_qx: publicKeyQx,
-            public_key_qy: publicKeyQy
+            public_key_qy: publicKeyQy,
+            curve_name: curveName // 在请求中加入曲线名称
         };
         console.log("发送ECC加密请求:", payload);
 
@@ -87,7 +103,7 @@ layui.use(['form', 'layer', 'jquery'], function () {
                 $(resultContainerId).empty();
 
                 if (response.success && response.ephemeral_R_x && response.ciphertext_hex) {
-                    var resultHtml = "<fieldset class='layui-elem-field'><legend>ECC加密结果 (简化ECIES)</legend><div class='layui-field-box'>";
+                    var resultHtml = "<fieldset class='layui-elem-field'><legend>ECC加密结果 ("+response.curve_name+")</legend><div class='layui-field-box'>";
                     resultHtml += "<pre><strong>临时公钥 R.x:</strong>\n" + $('<div/>').text(response.ephemeral_R_x).html() + "</pre>";
                     resultHtml += "<pre><strong>临时公钥 R.y:</strong>\n" + $('<div/>').text(response.ephemeral_R_y).html() + "</pre>";
                     resultHtml += "<pre><strong>密文 C (Hex):</strong>\n" + $('<div/>').text(response.ciphertext_hex).html() + "</pre>";
@@ -98,6 +114,8 @@ layui.use(['form', 'layer', 'jquery'], function () {
                     $('#eccEphemeralRxDecryptInput').val(response.ephemeral_R_x);
                     $('#eccEphemeralRyDecryptInput').val(response.ephemeral_R_y);
                     $('#eccCiphertextHexDecryptInput').val(response.ciphertext_hex);
+                    // 同时填充曲线名称
+                    $('#eccCurveNameDecryptInput').val(response.curve_name);
 
                     layer.msg(response.message || 'ECC加密成功！', { icon: 1, time: 2000 });
                 } else {
@@ -124,9 +142,12 @@ layui.use(['form', 'layer', 'jquery'], function () {
         var ephemeralRy = $('#eccEphemeralRyDecryptInput').val();
         var ciphertextHex = $('#eccCiphertextHexDecryptInput').val();
         var privateKeyD = $('#eccPrivateKeyDDecryptInput').val();
+        // 获取当前操作的曲线名称
+        var curveName = $('#eccCurveNameDecryptInput').val();
 
-        if (!ephemeralRx || !ephemeralRy || !ciphertextHex || !privateKeyD) {
-            layer.alert('进行解密操作，临时公钥R(x,y), 密文, 和私钥d均不能为空！', { icon: 7, title: '输入错误' });
+
+        if (!ephemeralRx || !ephemeralRy || !ciphertextHex || !privateKeyD || !curveName) {
+            layer.alert('进行解密操作，临时公钥R(x,y), 密文, 私钥d以及曲线名称均不能为空！', { icon: 7, title: '输入错误' });
             return false;
         }
         
@@ -135,7 +156,8 @@ layui.use(['form', 'layer', 'jquery'], function () {
             ephemeral_R_x: ephemeralRx,
             ephemeral_R_y: ephemeralRy,
             ciphertext_hex: ciphertextHex,
-            private_key_d: privateKeyD
+            private_key_d: privateKeyD,
+            curve_name: curveName // 在请求中加入曲线名称
         };
         console.log("发送ECC解密请求:", payload);
 
@@ -150,7 +172,7 @@ layui.use(['form', 'layer', 'jquery'], function () {
                 $(resultContainerId).empty();
 
                 if (response.success && response.decrypted_text !== undefined) {
-                    var resultHtml = "<fieldset class='layui-elem-field'><legend>ECC解密结果 (简化ECIES)</legend><div class='layui-field-box'>";
+                    var resultHtml = "<fieldset class='layui-elem-field'><legend>ECC解密结果 ("+curveName+")</legend><div class='layui-field-box'>";
                     resultHtml += "<pre><strong>解密后明文:</strong>\n" + $('<div/>').text(response.decrypted_text).html() + "</pre>";
                     resultHtml += "</div></fieldset>";
                     $(resultContainerId).html(resultHtml);
